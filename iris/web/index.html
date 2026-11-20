@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<!-- Iris Fase 2 - by: KangJiho -->
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Iris</title>
+<style>
+  html, body { margin:0; height:100%; background:#14141c; color:#eee;
+    font-family:system-ui, sans-serif; overflow:hidden; }
+  #app { display:flex; flex-direction:column; height:100%; }
+  #stage { flex:0 0 42%; display:flex; align-items:center; justify-content:center; }
+  #avatar { height:100%; max-height:300px; animation:breathe 4s ease-in-out infinite;
+    transform-origin:50% 100%; }
+  @keyframes breathe { 0%,100%{transform:scaleY(1)} 50%{transform:scaleY(1.015)} }
+  .eye { transform-box:fill-box; transform-origin:center; animation:blink 5s infinite; }
+  @keyframes blink { 0%,94%,100%{transform:scaleY(1)} 97%{transform:scaleY(0.1)} }
+  #mouth { transform-box:fill-box; transform-origin:center; }
+  .talking #mouth { animation:talk .25s infinite alternate; }
+  @keyframes talk { from{transform:scaleY(.4)} to{transform:scaleY(2.2)} }
+  #chat { flex:1; overflow-y:auto; padding:8px 12px; }
+  .msg { max-width:80%; margin:6px 0; padding:8px 12px; border-radius:14px; line-height:1.35; }
+  .iris { background:#2b2b44; }
+  .me { background:#3d5afe; margin-left:auto; }
+  #bar { display:flex; gap:8px; padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px)); }
+  #text { flex:1; padding:10px; border-radius:10px; border:0; font-size:16px; }
+  button { padding:10px 16px; border:0; border-radius:10px; font-size:16px;
+    background:#3d5afe; color:#fff; }
+  #status { font-size:12px; text-align:center; color:#8a8aa5; height:16px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <svg id="avatar" viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg">
+      <rect x="55" y="150" width="90" height="110" rx="32" fill="#6c7bd9"/>
+      <circle cx="100" cy="100" r="62" fill="#ffe0cc"/>
+      <path d="M38 95 Q100 10 162 95 Q150 55 100 48 Q50 55 38 95Z" fill="#3a2a5c"/>
+      <g id="eyes">
+        <ellipse class="eye" cx="78" cy="102" rx="9" ry="12" fill="#222"/>
+        <ellipse class="eye" cx="122" cy="102" rx="9" ry="12" fill="#222"/>
+      </g>
+      <ellipse id="mouth" cx="100" cy="135" rx="12" ry="4" fill="#a33"/>
+    </svg>
+  </div>
+  <div id="status"></div>
+  <div id="chat"></div>
+  <div id="bar">
+    <input id="text" placeholder="Ketik pesan..." autocomplete="off">
+    <button id="send">Kirim</button>
+  </div>
+</div>
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('text');
+const avatar = document.getElementById('avatar');
+const eyes = document.getElementById('eyes');
+const statusEl = document.getElementById('status');
+
+function add(role, text) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + role;
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// Mata mengikuti titik sentuhan
+function look(e) {
+  const p = e.touches ? e.touches[0] : e;
+  const r = avatar.getBoundingClientRect();
+  const dx = Math.max(-1, Math.min(1, (p.clientX - (r.left + r.width/2)) / r.width));
+  const dy = Math.max(-1, Math.min(1, (p.clientY - (r.top + r.height/3)) / r.height));
+  eyes.style.transform = `translate(${dx*5}px, ${dy*4}px)`;
+}
+window.addEventListener('touchstart', look, {passive:true});
+window.addEventListener('mousemove', look);
+
+// FASE 2: balasan dari server (LLM) + suara bawaan Android
+function speak(t) {
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = 'id-ID';
+    u.onstart = () => avatar.classList.add('talking');
+    u.onend = () => avatar.classList.remove('talking');
+    u.onerror = () => avatar.classList.remove('talking');
+    speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+function token() {
+  try {
+    let t = localStorage.getItem('iris_token');
+    if (!t) { t = prompt('Token Iris:') || ''; localStorage.setItem('iris_token', t); }
+    return t;
+  } catch (e) { return prompt('Token Iris:') || ''; }
+}
+
+async function getReply(text) {
+  const r = await fetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Token': token() },
+    body: JSON.stringify({ text })
+  });
+  if (r.status === 401) { try { localStorage.removeItem('iris_token'); } catch (e) {} throw new Error('token'); }
+  if (!r.ok) throw new Error('server');
+  const j = await r.json();
+  speak(j.reply);
+  return j.reply;
+}
+
+async function send() {
+  const t = input.value.trim();
+  if (!t) return;
+  input.value = '';
+  add('me', t);
+  try {
+    const reply = await getReply(t);
+    add('iris', reply);
+  } catch (e) {
+    statusEl.textContent = (e && e.message === 'token') ? 'Token salah, coba lagi' : 'Gagal terhubung';
+  }
+}
+document.getElementById('send').onclick = send;
+input.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+add('iris', 'Halo! Aku Iris.');
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Rahasia dan data pribadi
+.env
+*.env
+memory.json
+iris/memory.json
+iris/server/memory.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node / Capacitor (Fase 3)
+node_modules/
+iris-app/android/build/
+iris-app/android/app/build/
+iris-app/android/.gradle/
+local.properties
+*.apk
+*.aab
+
+# OS / editor
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
